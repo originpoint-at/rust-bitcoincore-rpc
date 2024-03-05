@@ -19,7 +19,8 @@ use crate::{bitcoin, deserialize_hex};
 use bitcoin::hex::DisplayHex;
 use jsonrpc;
 use serde;
-use serde_json;
+use serde_json::{self, json};
+use serde_json::value::to_raw_value;
 
 use crate::bitcoin::address::{NetworkUnchecked, NetworkChecked};
 use crate::bitcoin::hashes::hex::FromHex;
@@ -1307,15 +1308,9 @@ impl RpcApi for Client {
         cmd: &str,
         args: &[serde_json::Value],
     ) -> Result<T> {
-        let raw_args: Vec<_> = args
-            .iter()
-            .map(|a| {
-                let json_string = serde_json::to_string(a)?;
-                serde_json::value::RawValue::from_string(json_string) // we can't use to_raw_value here due to compat with Rust 1.29
-            })
-            .map(|a| a.map_err(|e| Error::Json(e)))
-            .collect::<Result<Vec<_>>>()?;
-        let req = self.client.build_request(&cmd, &raw_args);
+        let param = json!(args);
+        let raw_value = to_raw_value(&param).unwrap();
+        let req = self.client.build_request(&cmd, Some(&*raw_value));
         if log_enabled!(Debug) {
             debug!(target: "bitcoincore_rpc", "JSON-RPC request: {} {}", cmd, serde_json::Value::from(args));
         }
